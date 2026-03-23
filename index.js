@@ -1,6 +1,6 @@
 const axios = require("axios");
 
-// 🔥 Your products (priority order)
+// 🧠 Products
 const products = [
   {
     name: "Rose Lassi",
@@ -12,16 +12,10 @@ const products = [
   }
 ];
 
-// 🔔 Your notification (Telegram for now)
+// 🔔 Telegram
 async function sendNotification(message) {
   const token = process.env.TELEGRAM_TOKEN;
   const chatId = process.env.TELEGRAM_CHAT_ID;
-
-  if (!token || !chatId) {
-    console.log("⚠️ No Telegram config, printing instead:");
-    console.log(message);
-    return;
-  }
 
   await axios.post(`https://api.telegram.org/bot${token}/sendMessage`, {
     chat_id: chatId,
@@ -33,9 +27,7 @@ async function sendNotification(message) {
 async function checkStock(product) {
   try {
     const res = await axios.get(product.url, {
-      headers: {
-        "User-Agent": "Mozilla/5.0"
-      }
+      headers: { "User-Agent": "Mozilla/5.0" }
     });
 
     const html = res.data;
@@ -47,21 +39,33 @@ async function checkStock(product) {
       console.log(`🔥 ${product.name} → IN STOCK`);
       return true;
     }
-
   } catch (err) {
     console.log(`⚠️ Error checking ${product.name}`);
     return false;
   }
 }
 
-// 🧠 Main logic
+// 🧠 MAIN
 (async () => {
+  const now = new Date().toLocaleString();
+  console.log(`⏱ Running at: ${now}`);
+
+  let found = false;
+
   for (const product of products) {
     const inStock = await checkStock(product);
 
     if (inStock) {
-      await sendNotification(`🔥 ${product.name} is IN STOCK!\n${product.url}`);
-      break; // stop after first available (priority)
+      found = true;
+      await sendNotification(`🚨🚨🚨 IN STOCK 🚨🚨🚨\n${product.name}\n${product.url}`);
+      break;
     }
+  }
+
+  // 🟢 Heartbeat logic (every hour)
+  const minute = new Date().getMinutes();
+
+  if (minute === 0) {
+    await sendNotification(`✅ Bot Running\nTime: ${now}`);
   }
 })();
