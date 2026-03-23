@@ -1,5 +1,8 @@
 const axios = require("axios");
 
+// =========================
+// 🧠 PRODUCTS
+// =========================
 const products = [
   {
     name: "Rose Lassi",
@@ -13,6 +16,9 @@ const products = [
   }
 ];
 
+// =========================
+// 🔔 TELEGRAM
+// =========================
 async function sendNotification(message) {
   const token = process.env.TELEGRAM_TOKEN;
   const chatId = process.env.TELEGRAM_CHAT_ID;
@@ -28,6 +34,9 @@ async function sendNotification(message) {
   }
 }
 
+// =========================
+// 🔍 STOCK CHECK via Amul JSON API
+// =========================
 async function checkStock(product) {
   try {
     const query = JSON.stringify({
@@ -65,20 +74,33 @@ async function checkStock(product) {
   }
 }
 
+// =========================
+// 🧠 MAIN
+// =========================
 (async () => {
   const now = new Date();
   const ist = new Date(now.getTime() + 5.5 * 60 * 60 * 1000);
   const timeStr = ist.toISOString().replace("T", " ").slice(0, 19) + " IST";
   console.log(`⏱ Running at: ${timeStr}`);
 
-  // Deploy ping on manual trigger
+  // =========================
+  // 🚀 DEPLOY PING
+  // =========================
   if (process.env.FIRST_RUN === "true") {
-    await sendNotification(`🚀 <b>Bot Deployed!</b>\n🕒 ${timeStr}\n▶️ Watching: Rose Lassi &amp; Plain Lassi`);
+    await sendNotification(
+`🚀 <b>Bot Deployed!</b>
+🕒 ${timeStr}
+⏱ Checking every 5 minutes
+▶️ Watching: Rose Lassi &amp; Plain Lassi`
+    );
     return;
   }
 
-  // Check all products
+  // =========================
+  // 🔍 CHECK STOCK
+  // =========================
   let anyInStock = false;
+
   for (const product of products) {
     const inStock = await checkStock(product);
     if (inStock) {
@@ -87,16 +109,25 @@ async function checkStock(product) {
 `🟢🟢🟢 <b>IN STOCK!</b> 🟢🟢🟢
 🔥 <b>${product.name}</b>
 👉 ${product.url}
-⚡ BUY FAST!`
+⚡ BUY FAST before it sells out!`
       );
     }
   }
 
   if (anyInStock) return;
 
-  // Heartbeat — only at minute 0 or 30
+  // =========================
+  // ⚡ HEARTBEAT — every 30 mins
+  // With 5-min cron, runs hit :00, :05, :10...
+  // Only minute 0 and 30 trigger heartbeat
+  // =========================
   const minute = ist.getMinutes();
-  if (minute === 0 || minute === 30) {
-    await sendNotification(`⚡ <b>Bot Active</b>\n🕒 ${timeStr}\n🔍 Both products still out of stock`);
+  if (minute < 5 || (minute >= 30 && minute < 35)) {
+    await sendNotification(
+`⚡ <b>Bot Active</b>
+🕒 ${timeStr}
+🔍 Checking every 5 min
+📦 Both products still out of stock`
+    );
   }
 })();
