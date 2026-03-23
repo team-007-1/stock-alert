@@ -1,28 +1,72 @@
-name: Stock Checker
+const axios = require("axios");
 
-on:
-  schedule:
-    - cron: "*/1 * * * *"   # runs every 1 minute ⚡
-  workflow_dispatch:        # allows manual run
+// 🧠 Products
+const products = [
+  {
+    name: "Rose Lassi",
+    url: "https://shop.amul.com/en/product/amul-high-protein-rose-lassi-200-ml-or-pack-of-30"
+  },
+  {
+    name: "Plain Lassi",
+    url: "https://shop.amul.com/en/product/amul-high-protein-plain-lassi-200-ml-or-pack-of-30"
+  }
+];
 
-jobs:
-  check-stock:
-    runs-on: ubuntu-latest
+// 🔔 Telegram
+async function sendNotification(message) {
+  const token = process.env.TELEGRAM_TOKEN;
+  const chatId = process.env.TELEGRAM_CHAT_ID;
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+  if (!token || !chatId) {
+    console.log("⚠️ Missing Telegram config");
+    return;
+  }
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: 18
+  await axios.post(`https://api.telegram.org/bot${token}/sendMessage`, {
+    chat_id: chatId,
+    text: message
+  });
+}
 
-      - name: Install dependencies
-        run: npm install
+// 🔍 Check stock
+async function checkStock(product) {
+  try {
+    const res = await axios.get(product.url, {
+      headers: { "User-Agent": "Mozilla/5.0" }
+    });
 
-      - name: Run stock checker
-        run: node index.js
-        env:
-          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+    const html = res.data;
+
+    if (html.includes("Sold Out")) {
+      console.log(`❌ ${product.name} → Out of stock`);
+      return false;
+    } else {
+      console.log(`🔥 ${product.name} → IN STOCK`);
+      return true;
+    }
+  } catch (err) {
+    console.log(`⚠️ Error checking ${product.name}`);
+    return false;
+  }
+}
+
+// 🧠 MAIN
+(async () => {
+  const now = new Date().toLocaleString();
+  console.log(`⏱ Running check at: ${now}`);
+
+  let found = false;
+
+  for (const product of products) {
+    const inStock = await checkStock(product);
+
+    if (inStock) {
+      found = true;
+      await sendNotification(`🚨🚨🚨 IN STOCK 🚨🚨🚨\n${product.name}\n${product.url}`);
+      break;
+    }
+  }
+
+  // 🔁 Heartbeat (every run)
+  await sendNotification(`✅ Bot Alive\nChecked at: ${now}`);
+})();
