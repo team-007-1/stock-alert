@@ -1,28 +1,26 @@
-name: Stock Checker
+name: Amul Stock Checker
 
 on:
   schedule:
-    - cron: "*/1 * * * *"
-  workflow_dispatch:
+    - cron: "*/2 * * * *"   # every 2 minutes
+  workflow_dispatch:          # manual trigger = deploy ping
 
 jobs:
-  check-stock:
+  check:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
+      - uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: "20"
 
-      - name: Install dependencies
-        run: npm install
+      - run: npm install axios
 
       - name: Run stock checker
-        run: node index.js
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          # Set FIRST_RUN=true only on manual dispatch (deploy ping)
+          FIRST_RUN: ${{ github.event_name == 'workflow_dispatch' && 'true' || 'false' }}
+        run: node check.js
