@@ -1,8 +1,5 @@
 const axios = require("axios");
 
-// =========================
-// 🧠 PRODUCTS
-// =========================
 const products = [
   {
     name: "Rose Lassi",
@@ -16,9 +13,6 @@ const products = [
   }
 ];
 
-// =========================
-// 🔔 TELEGRAM
-// =========================
 async function sendNotification(message) {
   const token = process.env.TELEGRAM_TOKEN;
   const chatId = process.env.TELEGRAM_CHAT_ID;
@@ -28,22 +22,16 @@ async function sendNotification(message) {
       text: message,
       parse_mode: "HTML"
     });
-    console.log("✅ Telegram message sent");
+    console.log("✅ Telegram sent");
   } catch (err) {
     console.log("❌ Telegram error:", err?.response?.data || err.message);
   }
 }
 
-// =========================
-// 🔍 STOCK CHECK via Amul API
-// =========================
 async function checkStock(product) {
   try {
-    // Use Amul's internal JSON API - NOT the HTML page
     const query = JSON.stringify({
-      filters: [
-        { field: "alias", value: product.alias, operator: "=" }
-      ]
+      filters: [{ field: "alias", value: product.alias, operator: "=" }]
     });
 
     const apiUrl = `https://shop.amul.com/api/1/entity/ms.products?q=${encodeURIComponent(query)}&fields=available,alias,name,inventory_quantity&limit=1`;
@@ -58,63 +46,38 @@ async function checkStock(product) {
     });
 
     const data = res.data;
-    console.log(`📦 API response for ${product.name}:`, JSON.stringify(data).slice(0, 300));
+    console.log(`📦 API response for ${product.name}:`, JSON.stringify(data).slice(0, 400));
 
-    // The API returns { data: [ { available: true/false, ... } ] }
-    const item = data?.data?.[0] || data?.items?.[0] || (Array.isArray(data) ? data[0] : null);
+    const item = data?.data?.[0] ?? data?.items?.[0] ?? (Array.isArray(data) ? data[0] : null);
 
     if (!item) {
-      console.log(`⚠️ ${product.name} → No item found in API response`);
+      console.log(`⚠️ ${product.name} → No item found in response`);
       return false;
     }
 
     const isAvailable = item.available === true || item.available === 1;
-    const qty = item.inventory_quantity ?? "?";
-
-    if (isAvailable) {
-      console.log(`🟢 ${product.name} → IN STOCK (qty: ${qty})`);
-    } else {
-      console.log(`❌ ${product.name} → Out of stock`);
-    }
-
+    console.log(`${isAvailable ? "🟢" : "❌"} ${product.name} → ${isAvailable ? "IN STOCK" : "Out of stock"} (qty: ${item.inventory_quantity ?? "?"})`);
     return isAvailable;
 
   } catch (err) {
-    const status = err?.response?.status;
-    const msg = err?.response?.data || err.message;
-    console.log(`⚠️ Error checking ${product.name} [${status}]:`, msg);
+    console.log(`⚠️ Error checking ${product.name}:`, err?.response?.status, err?.response?.data || err.message);
     return false;
   }
 }
 
-// =========================
-// 🧠 MAIN
-// =========================
 (async () => {
   const now = new Date();
-  // Use IST (UTC+5:30)
-  const istOffset = 5.5 * 60 * 60 * 1000;
-  const ist = new Date(now.getTime() + istOffset);
+  const ist = new Date(now.getTime() + 5.5 * 60 * 60 * 1000);
   const timeStr = ist.toISOString().replace("T", " ").slice(0, 19) + " IST";
-
   console.log(`⏱ Running at: ${timeStr}`);
 
-  // =========================
-  // 🔔 DEPLOY PING
-  // Check if this is the very first run (passed via env)
-  // =========================
+  // Deploy ping on manual trigger
   if (process.env.FIRST_RUN === "true") {
-    await sendNotification(
-`🚀 <b>Bot Deployed!</b>
-🕒 ${timeStr}
-▶️ Monitoring started for Rose Lassi &amp; Plain Lassi`
-    );
-    return; // Don't check stock on deploy ping
+    await sendNotification(`🚀 <b>Bot Deployed!</b>\n🕒 ${timeStr}\n▶️ Watching: Rose Lassi &amp; Plain Lassi`);
+    return;
   }
 
-  // =========================
-  // 🔍 CHECK PRODUCTS
-  // =========================
+  // Check all products
   let anyInStock = false;
   for (const product of products) {
     const inStock = await checkStock(product);
@@ -124,27 +87,16 @@ async function checkStock(product) {
 `🟢🟢🟢 <b>IN STOCK!</b> 🟢🟢🟢
 🔥 <b>${product.name}</b>
 👉 ${product.url}
-⚡ BUY FAST before it sells out!`
+⚡ BUY FAST!`
       );
-      // Don't return — check both products and notify for each
     }
   }
 
-  if (anyInStock) return; // Skip heartbeat if stock alert was sent
+  if (anyInStock) return;
 
-  // =========================
-  // 🔔 HEARTBEAT — every 30 mins only
-  // =========================
+  // Heartbeat — only at minute 0 or 30
   const minute = ist.getMinutes();
-  const second = ist.getSeconds();
-
-  // Only send heartbeat at minute 0 or 30, and only in first 2 seconds
-  // This prevents duplicate sends across 2-min cron runs
-  if ((minute === 0 || minute === 30) && second < 120) {
-    await sendNotification(
-`⚡ <b>Bot Active</b>
-🕒 ${timeStr}
-🔍 Checking every 2 min — products still out of stock`
-    );
+  if (minute === 0 || minute === 30) {
+    await sendNotification(`⚡ <b>Bot Active</b>\n🕒 ${timeStr}\n🔍 Both products still out of stock`);
   }
 })();
