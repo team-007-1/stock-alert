@@ -63,9 +63,9 @@ async function checkStock(product) {
   }
 
   // 🟢 Heartbeat logic (every hour)
-  const minute = new Date().getMinutes();
+const minute = new Date().getMinutes();
 
-  if (minute === 0) {
-    await sendNotification(`✅ Bot Running\nTime: ${now}`);
-  }
+if (minute <= 1 || (minute >= 30 && minute <= 31)) {
+  await sendNotification(`⚡ Bot Running\nTime: ${now}`);
+}
 })();
