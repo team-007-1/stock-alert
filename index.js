@@ -1,6 +1,6 @@
 const axios = require("axios");
 
-// 🧠 Products
+// 🧠 Products (priority order)
 const products = [
   {
     name: "Rose Lassi",
@@ -17,10 +17,14 @@ async function sendNotification(message) {
   const token = process.env.TELEGRAM_TOKEN;
   const chatId = process.env.TELEGRAM_CHAT_ID;
 
-  await axios.post(`https://api.telegram.org/bot${token}/sendMessage`, {
-    chat_id: chatId,
-    text: message
-  });
+  try {
+    await axios.post(`https://api.telegram.org/bot${token}/sendMessage`, {
+      chat_id: chatId,
+      text: message
+    });
+  } catch (err) {
+    console.log("❌ Telegram error");
+  }
 }
 
 // 🔍 Check stock
@@ -36,9 +40,10 @@ async function checkStock(product) {
       console.log(`❌ ${product.name} → Out of stock`);
       return false;
     } else {
-      console.log(`🔥 ${product.name} → IN STOCK`);
+      console.log(`🟢 ${product.name} → IN STOCK`);
       return true;
     }
+
   } catch (err) {
     console.log(`⚠️ Error checking ${product.name}`);
     return false;
@@ -47,25 +52,55 @@ async function checkStock(product) {
 
 // 🧠 MAIN
 (async () => {
-  const now = new Date().toLocaleString();
-  console.log(`⏱ Running at: ${now}`);
+  const now = new Date();
+  const timeStr = now.toLocaleString();
+  const minute = now.getMinutes();
+
+  console.log(`⏱ Running at: ${timeStr}`);
 
   let found = false;
 
+  // 🔍 Check all products
   for (const product of products) {
     const inStock = await checkStock(product);
 
     if (inStock) {
       found = true;
-      await sendNotification(`🚨🚨🚨 IN STOCK 🚨🚨🚨\n${product.name}\n${product.url}`);
-      break;
+
+      await sendNotification(
+`🟢🟢🟢 IN STOCK 🟢🟢🟢
+
+🔥 ${product.name}
+👉 ${product.url}
+
+⚡ BUY FAST!`
+      );
+
+      break; // stop after first available
     }
   }
 
-  // 🟢 Heartbeat logic (every hour)
-const minute = new Date().getMinutes();
+  // =========================
+  // 🔔 HEARTBEAT SYSTEM
+  // =========================
 
-if (minute <= 1 || (minute >= 30 && minute <= 31)) {
-  await sendNotification(`⚡ Bot Running\nTime: ${now}`);
-}
+  // ✅ First run / deploy (first 2 min window)
+  if (minute <= 1) {
+    await sendNotification(
+`⚡ Bot Started
+
+🕒 ${timeStr}
+📦 Monitoring products...`
+    );
+  }
+
+  // ✅ Every ~30 min window (safe range)
+  else if (minute >= 29 && minute <= 31) {
+    await sendNotification(
+`⚡ Bot Running
+
+🕒 ${timeStr}`
+    );
+  }
+
 })();
